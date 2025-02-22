@@ -1,0 +1,40 @@
+
+#Upload rarefied RA microbial abundance and clinical metadata including 8 covariates. 
+
+df_s = pd.read_csv("df_s_model_rarefied_pos.csv", index_col=0)
+df_s['comparison_three'] = df_s['comparison_three'] #This is the label. 
+
+labels = df_s.pop("comparison_three")
+
+value_counts = labels.value_counts()
+#300 patients in non-LC, and 80 in LC. 
+
+#Species-level abundance matrix
+df_species = df_s.drop(columns=["age",'sex', "dis_sev", "CCI_score", "BMI","immunosuppression", "fully_vac_index", "thirty_day_antibiotic"])
+
+#Clinical metadata
+df_meta = df_s[["age",'sex', "dis_sev", "CCI_score", "BMI","immunosuppression", "fully_vac_index", "thirty_day_antibiotic"]]
+
+print(df_meta.isna().any())
+#No missing clinical data. 
+
+df_meta_encoded = pd.get_dummies(df_meta, columns=['sex','fully_vac_index','immunosuppression','dis_sev'], drop_first=True)
+
+X_meta = df_meta_encoded
+y = labels
+
+#Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X_meta , y, test_size=0.3, random_state=42,stratify=y)
+
+#Calculate the class weight and reweigh
+unique_classes = np.unique(y_train)
+class_weights = compute_class_weight('balanced', classes=unique_classes, y=y_train.values.reshape(-1))
+class_weights_dict = dict(enumerate(class_weights))
+print('class weights',class_weights_dict)
+
+#Define the model, will use liblinear solver, and do reweighing
+Logit_cv = LogisticRegression(class_weight=class_weights_dict, random_state=42, solver='liblinear')
+
+Logit_cv.fit(X_train, y_train)
+
+param_grid = {'C': np.logspace(-3, 1, 100)} 
