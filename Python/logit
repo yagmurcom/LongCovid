@@ -87,33 +87,3 @@ print("nested_scores_microbiome_clinical_accuracy - mean={:.2f}, SD={:.2f}".form
     nested_scores_microbiome_clinical_accuracy.mean(), nested_scores_microbiome_clinical_accuracy.std()
 ))
 
-##Extracting the impactful features. 
-NUM_TRIALS = 10
-nested_scores = np.zeros(NUM_TRIALS)
-best_params_list = []
-top_features_coefficients_list = []
-
-Logit_cv = LogisticRegression(class_weight=class_weights_dict, random_state=42, solver='liblinear')
-param_grid = {'C': np.logspace(-3, 1, 100)}
-
-for i in range(NUM_TRIALS):
-    outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=i)
-    for train_index, test_index in outer_cv.split(X_combined_scaled, y):
-        X_train, X_test = X_combined_scaled.iloc[train_index], X_combined_scaled.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        clf = GridSearchCV(estimator=Logit_cv, param_grid=param_grid, scoring='accuracy', cv=5)
-        clf.fit(X_train, y_train)
-        best_params_list.append(clf.best_params_)
-        best_model = clf.best_estimator_
-        coefficients = best_model.coef_[0]
-        feature_names = X_train.columns
-        coeff_df = pd.DataFrame(list(zip(feature_names, coefficients)), columns=['feature', 'log_odds'])
-        top_features_log_odds = coeff_df.reindex(coeff_df.log_odds.abs().sort_values(ascending=False).index).head(20)
-        top_features_coefficients_list.append((clf.best_params_, top_features_log_odds))
-        nested_scores[i] = clf.best_score_
-
-print("Nested CV best Accuracy - mean={:.2f}, SD={:.2f}".format(nested_scores.mean(), nested_scores.std()))
-print("Best parameters per outer fold:", best_params_list)
-for idx, (params, top_features_log_odds) in enumerate(top_features_coefficients_list, 1):
-    print(f"Top 20 features and log odds for fold {idx} with parameters {params}:")
-    print(top_features_log_odds)
